@@ -7,8 +7,8 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
+// Fix Leaflet marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
-
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
@@ -17,24 +17,27 @@ L.Icon.Default.mergeOptions({
 
 const DEFAULT_POSITION = [51.505, -0.09];
 
-function FlyToLocation({ position }) {
+/* ---------------- Fly To Location ---------------- */
+function FlyToLocation(props) {
   const map = useMap();
 
   useEffect(() => {
-    if (position) {
-      map.flyTo(position, 13);
+    if (props.position) {
+      map.flyTo(props.position, 13);
     }
-  }, [position, map]);
+  }, [props.position, map]);
 
   return null;
 }
 
+/* ---------------- Dashboard ---------------- */
 function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [position, setPosition] = useState(DEFAULT_POSITION);
   const [airQuality, setAirQuality] = useState(null);
   const [pollutants, setPollutants] = useState({});
 
+  /* -------- Location Search -------- */
   const handleSearch = async () => {
     if (!searchTerm) return;
 
@@ -52,10 +55,11 @@ function Dashboard() {
         alert("Location not found.");
       }
     } catch (err) {
-      console.error("Error fetching location:", err);
+      console.error("Location error:", err);
     }
   };
 
+  /* -------- Fetch AQI -------- */
   const fetchAirQuality = async (lat, lon) => {
     try {
       const apiKey = "6f0d396f584163675485322c2ac8ad45";
@@ -63,66 +67,70 @@ function Dashboard() {
         `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`
       );
 
-      const data = res.data;
-      setAirQuality(data.list[0].main.aqi);
-      setPollutants(data.list[0].components);
+      const data = res.data.list[0];
+      setAirQuality(data.main.aqi);
+      setPollutants(data.components);
     } catch (err) {
-      console.error("Error fetching AQI:", err);
+      console.error("AQI error:", err);
     }
   };
 
+  /* -------- Live Location -------- */
   const fetchLiveLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          setPosition([lat, lon]);
-          setSearchTerm("Your Location");
-          fetchAirQuality(lat, lon);
-        },
-        (error) => {
-          console.error("Geolocation error:", error);
-          alert("Error getting location: " + error.message);
-        }
-      );
-    } else {
-      alert("Geolocation is not supported by this browser.");
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported.");
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        setPosition([lat, lon]);
+        setSearchTerm("Your Location");
+        fetchAirQuality(lat, lon);
+      },
+      (err) => {
+        alert(err.message);
+      }
+    );
   };
 
+  /* -------- AQI Text -------- */
   const getAQIText = (aqi) => {
     switch (aqi) {
-      case 1: return { text: "Good", color: "success" };
-      case 2: return { text: "Moderate", color: "warning" };
-      case 3: return { text: "Unhealthy", color: "danger" };
-      case 4: return { text: "Very Unhealthy", color: "dark" };
-      case 5: return { text: "Hazardous", color: "secondary" };
-      default: return { text: "Unknown", color: "light" };
+      case 1: return "Good";
+      case 2: return "Moderate";
+      case 3: return "Unhealthy";
+      case 4: return "Very Unhealthy";
+      case 5: return "Hazardous";
+      default: return "Unknown";
     }
   };
 
-  const aqiInfo = getAQIText(airQuality);
+  const aqiText = getAQIText(airQuality);
 
+  /* -------- AQI Color -------- */
   const getGradientColor = (quality) => {
     switch (quality) {
       case "Good":
-        return "linear-gradient(135deg, #00b09b, #00b09b77)";
+        return "linear-gradient(135deg,#00b09b,#00b09b77)";
       case "Moderate":
-        return "linear-gradient(135deg, #ff9a00, #ff9a0077)";
+        return "linear-gradient(135deg,#ff9a00,#ff9a0077)";
       case "Unhealthy":
-        return "linear-gradient(135deg, #ff4757, #ff475777)";
+        return "linear-gradient(135deg,#ff4757,#ff475777)";
       case "Very Unhealthy":
-        return "linear-gradient(135deg, #8b0000, #8b000077)";
+        return "linear-gradient(135deg,#8b0000,#8b000077)";
       case "Hazardous":
-        return "linear-gradient(135deg, #800080, #80008077)";
+        return "linear-gradient(135deg,#800080,#80008077)";
       default:
-        return "linear-gradient(135deg, #333, #333)";
+        return "linear-gradient(135deg,#333,#333)";
     }
   };
 
   return (
     <Container className="text-center my-4" style={{ backgroundColor: "#15191E" }}>
+      {/* ---------- MAP + AQI ---------- */}
       <Row className="justify-content-center mb-3">
         <Col md={8}>
           <Card style={{ backgroundColor: "#212931" }} className="text-light">
@@ -146,26 +154,247 @@ function Dashboard() {
 
               <MapContainer center={DEFAULT_POSITION} zoom={13} style={{ height: "300px" }}>
                 <TileLayer
-                  attribution='&copy; OpenStreetMap'
+                  attribution="&copy; OpenStreetMap"
                   url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <FlyToLocation position={position} />
                 <Marker position={position}>
                   <Popup>
                     Location: {searchTerm || "Default"} <br />
-                    AQI: {aqiInfo.text}
+                    AQI: {aqiText}
                   </Popup>
                 </Marker>
               </MapContainer>
             </Card.Body>
           </Card>
         </Col>
+
+        {/* ---------- AQI CIRCLE ---------- */}
+        <Col md={3} className="mt-5">
+          <Card style={{ backgroundColor: "#212931" }} className="text-light">
+            <Card.Header>Air Quality Index</Card.Header>
+            <Card.Body className="d-flex flex-column align-items-center">
+              {airQuality !== null ? (
+                <>
+                  <div
+                    style={{
+                      width: "100px",
+                      height: "100px",
+                      borderRadius: "50%",
+                      background: getGradientColor(aqiText),
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: "bold",
+                      marginBottom: "10px"
+                    }}
+                  >
+                    {aqiText}
+                  </div>
+                  <strong>{aqiText}</strong>
+                </>
+              ) : (
+                <p>Search a location</p>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ---------- POLLUTANTS ---------- */}
+      <Row className="justify-content-center">
+        {airQuality !== null &&
+          [
+            { label: "PM2.5", value: pollutants.pm2_5 },
+            { label: "PM10", value: pollutants.pm10 },
+            { label: "CO", value: pollutants.co },
+            { label: "NO₂", value: pollutants.no2 },
+            { label: "O₃", value: pollutants.o3 },
+          ].map((p, i) => (
+            <Col key={i} xs={12} sm={6} md={4} className="my-2">
+              <Card style={{ backgroundColor: "#222A30" }} className="text-light">
+                <Card.Body>
+                  <strong>{p.label}</strong>: {p.value}
+                </Card.Body>
+              </Card>
+            </Col>
+          ))}
       </Row>
     </Container>
   );
 }
 
 export default Dashboard;
+
+
+// import React, { useState, useEffect } from "react";
+// import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+// import { Card, Button, Row, Col, Form, Container } from "react-bootstrap";
+// import axios from "axios";
+// import L from "leaflet";
+// import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+// import markerIcon from "leaflet/dist/images/marker-icon.png";
+// import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+// delete L.Icon.Default.prototype._getIconUrl;
+
+// L.Icon.Default.mergeOptions({
+//   iconRetinaUrl: markerIcon2x,
+//   iconUrl: markerIcon,
+//   shadowUrl: markerShadow,
+// });
+
+// const DEFAULT_POSITION = [51.505, -0.09];
+
+// function FlyToLocation({ position }) {
+//   const map = useMap();
+
+//   useEffect(() => {
+//     if (position) {
+//       map.flyTo(position, 13);
+//     }
+//   }, [position, map]);
+
+//   return null;
+// }
+
+// function Dashboard() {
+//   const [searchTerm, setSearchTerm] = useState("");
+//   const [position, setPosition] = useState(DEFAULT_POSITION);
+//   const [airQuality, setAirQuality] = useState(null);
+//   const [pollutants, setPollutants] = useState({});
+
+//   const handleSearch = async () => {
+//     if (!searchTerm) return;
+
+//     try {
+//       const res = await axios.get(
+//         `https://nominatim.openstreetmap.org/search?format=json&q=${searchTerm}`
+//       );
+
+//       if (res.data.length > 0) {
+//         const lat = parseFloat(res.data[0].lat);
+//         const lon = parseFloat(res.data[0].lon);
+//         setPosition([lat, lon]);
+//         fetchAirQuality(lat, lon);
+//       } else {
+//         alert("Location not found.");
+//       }
+//     } catch (err) {
+//       console.error("Error fetching location:", err);
+//     }
+//   };
+
+//   const fetchAirQuality = async (lat, lon) => {
+//     try {
+//       const apiKey = "6f0d396f584163675485322c2ac8ad45";
+//       const res = await axios.get(
+//         `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`
+//       );
+
+//       const data = res.data;
+//       setAirQuality(data.list[0].main.aqi);
+//       setPollutants(data.list[0].components);
+//     } catch (err) {
+//       console.error("Error fetching AQI:", err);
+//     }
+//   };
+
+//   const fetchLiveLocation = () => {
+//     if (navigator.geolocation) {
+//       navigator.geolocation.getCurrentPosition(
+//         (pos) => {
+//           const lat = pos.coords.latitude;
+//           const lon = pos.coords.longitude;
+//           setPosition([lat, lon]);
+//           setSearchTerm("Your Location");
+//           fetchAirQuality(lat, lon);
+//         },
+//         (error) => {
+//           console.error("Geolocation error:", error);
+//           alert("Error getting location: " + error.message);
+//         }
+//       );
+//     } else {
+//       alert("Geolocation is not supported by this browser.");
+//     }
+//   };
+
+//   const getAQIText = (aqi) => {
+//     switch (aqi) {
+//       case 1: return { text: "Good", color: "success" };
+//       case 2: return { text: "Moderate", color: "warning" };
+//       case 3: return { text: "Unhealthy", color: "danger" };
+//       case 4: return { text: "Very Unhealthy", color: "dark" };
+//       case 5: return { text: "Hazardous", color: "secondary" };
+//       default: return { text: "Unknown", color: "light" };
+//     }
+//   };
+
+//   const aqiInfo = getAQIText(airQuality);
+
+//   const getGradientColor = (quality) => {
+//     switch (quality) {
+//       case "Good":
+//         return "linear-gradient(135deg, #00b09b, #00b09b77)";
+//       case "Moderate":
+//         return "linear-gradient(135deg, #ff9a00, #ff9a0077)";
+//       case "Unhealthy":
+//         return "linear-gradient(135deg, #ff4757, #ff475777)";
+//       case "Very Unhealthy":
+//         return "linear-gradient(135deg, #8b0000, #8b000077)";
+//       case "Hazardous":
+//         return "linear-gradient(135deg, #800080, #80008077)";
+//       default:
+//         return "linear-gradient(135deg, #333, #333)";
+//     }
+//   };
+
+//   return (
+//     <Container className="text-center my-4" style={{ backgroundColor: "#15191E" }}>
+//       <Row className="justify-content-center mb-3">
+//         <Col md={8}>
+//           <Card style={{ backgroundColor: "#212931" }} className="text-light">
+//             <Card.Header>Air Quality Map</Card.Header>
+//             <Card.Body>
+//               <Form className="mb-3 d-flex justify-content-center">
+//                 <Form.Control
+//                   type="text"
+//                   placeholder="Enter a location"
+//                   value={searchTerm}
+//                   onChange={(e) => setSearchTerm(e.target.value)}
+//                   className="me-2"
+//                 />
+//                 <Button variant="primary" className="me-2" onClick={handleSearch}>
+//                   Search
+//                 </Button>
+//                 <Button variant="success" onClick={fetchLiveLocation}>
+//                   Use My Location
+//                 </Button>
+//               </Form>
+
+//               <MapContainer center={DEFAULT_POSITION} zoom={13} style={{ height: "300px" }}>
+//                 <TileLayer
+//                   attribution='&copy; OpenStreetMap'
+//                   url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+//                 />
+//                 <FlyToLocation position={position} />
+//                 <Marker position={position}>
+//                   <Popup>
+//                     Location: {searchTerm || "Default"} <br />
+//                     AQI: {aqiInfo.text}
+//                   </Popup>
+//                 </Marker>
+//               </MapContainer>
+//             </Card.Body>
+//           </Card>
+//         </Col>
+//       </Row>
+//     </Container>
+//   );
+// }
+
+// export default Dashboard;
 
 
 // import React, { useState, useEffect } from "react";
@@ -392,6 +621,7 @@ export default Dashboard;
 // }
 
 // export default Dashboard;
+
 
 
 
